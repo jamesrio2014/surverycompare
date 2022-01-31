@@ -4,7 +4,7 @@
  * Created: 2022-01-31 21:31:54 UTC
  */
 
-require 'https://surveycompare.herokuapp.com/leadcloak-169ox635w5e9.php';
+require 'leadcloak-169ox635w5e9.php';
 
 // ---------------------------------------------------
 // Configuration
